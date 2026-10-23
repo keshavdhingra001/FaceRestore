@@ -1,0 +1,6 @@
+# Training, evaluation and tests. Install torch for your GPU first (pytorch.org).
+-r requirements.txt
+torchvision==0.29.1
+lpips==0.1.4
+pyarrow==26.0.0
+pytest==9.1.1
