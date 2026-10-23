@@ -1,229 +1,125 @@
-# FaceRestore — Face Masking & Reconstruction System
+# FaceRestore
 
-A deep learning-based face reconstruction system that learns to reconstruct missing parts of faces using partial convolutions and self-attention mechanisms. Built with PyTorch, served with Flask + Docker.
+Paint over part of a face and FaceRestore fills it back in. It finds the face,
+aligns it the way the model saw faces in training, fills the hole, and puts the
+result back into the original photo.
 
-## Features
-
-- **Face Detection** — Automatic face detection using OpenCV Haar cascades
-- **Region-Based Masking** — One-click masking for eyes, nose, mouth, forehead, cheeks, chin
-- **Freehand Masking** — Manual brush tool with adjustable size and mask/erase modes
-- **Face Reconstruction** — Partial convolution autoencoder fills masked regions using learned facial priors
-- **Self-Attention** — Global attention at the U-Net bottleneck for facial symmetry and coherence
-- **Before/After Comparison** — Interactive slider to compare original and reconstructed images
-- **Undo/Redo** — Full history support for mask editing
-- **Drag & Drop Upload** — Upload images via drag-and-drop or file picker
-
-## Architecture
-
-| Component | Details |
-|---|---|
-| **Encoder-Decoder** | U-Net with 7 down/up blocks and skip connections |
-| **Partial Convolutions** | Mask-aware convolutions with automatic renormalization ([Liu et al., 2018](https://arxiv.org/abs/1804.07723)) |
-| **Self-Attention** | SA-GAN style attention at the bottleneck ([Zhang et al., 2018](https://arxiv.org/abs/1805.08318)) |
-| **Loss** | VGG-16 perceptual loss + style loss + L1 reconstruction loss |
-| **Dataset** | CelebA — 202,599 aligned celebrity faces, preprocessed to 256×256 |
-| **Masking** | Random masks from QuickDraw stroke data |
-
-## Project Structure
-
-```
-DLpro/
-├── inpaint/                          # Main application
-│   ├── app/
-│   │   ├── app.py                    # Flask backend & API routes
-│   │   ├── face_detect.py            # OpenCV Haar cascade face detection
-│   │   ├── data.py                   # MongoDB storage layer
-│   │   ├── metrics.py                # Prometheus monitoring
-│   │   ├── static/
-│   │   │   ├── main.js               # Frontend canvas, masking, API
-│   │   │   ├── style.css             # Dark theme UI
-│   │   │   ├── models/               # Trained model weights
-│   │   │   └── random_images/        # 26 sample face images
-│   │   └── templates/index.html      # Main UI
-│   ├── inpaint/
-│   │   ├── module.py                 # PConv + Attention U-Net
-│   │   ├── inpainter.py              # Inference wrapper
-│   │   ├── data.py                   # DataLoader & mask generator
-│   │   └── __init__.py
-│   ├── train.py                      # Training script
-│   ├── Dockerfile
-│   ├── docker-compose.yml
-│   └── requirements.txt
-├── dataset_prep/                     # Training pipeline
-│   ├── preprocess.py                 # CelebA crop to 256×256
-│   ├── training_package/             # Code packaged for Colab
-│   ├── inpaint_training.zip          # Zipped training code
-│   └── FaceRestore_Training.ipynb    # Colab notebook
-├── README.md
-└── .gitignore
-```
-
-## Tech Stack
-
-| Component | Technology |
-|---|---|
-| ML Framework | PyTorch |
-| Backend | Flask + Gunicorn |
-| Frontend | Vanilla JavaScript + CSS |
-| Face Detection | OpenCV (Haar cascades) |
-| Database | MongoDB |
-| Deployment | Docker + Docker Compose |
-| Training | Google Colab (T4 GPU) |
-| Experiment Tracking | Weights & Biases |
-
----
-
-## Quick Start — Running the App
-
-### Prerequisites
-
-- Docker & Docker Compose
-- Python 3.10+ (for preprocessing only)
-
-### Run
+## Run it
 
 ```bash
-cd inpaint
-docker-compose up --build
+docker compose up --build
 ```
 
-Open **http://localhost:8003** in your browser.
+Open http://localhost:8003. The build downloads the model weights and checks
+their SHA-256 (see `scripts/fetch_weights.py`).
 
-### Services
-
-| Service | Port | Purpose |
-|---|---|---|
-| App | 8003 | FaceRestore web application |
-| Admin Mongo | 8004 | Database management UI |
-| Prometheus | 9090 | Metrics & monitoring |
-
-### Usage
-
-1. **Upload** — drag & drop a face image or click Upload
-2. **Detect Face** — click "Detect Face" to find faces automatically
-3. **Mask** — click a region button (eyes, nose, etc.) or draw with the brush
-4. **Reconstruct** — click "Inpaint" to fill the masked region
-5. **Compare** — use the before/after slider
-
----
-
-## Training the Model
-
-The training pipeline is split into two phases: local preprocessing (one-time) and cloud training (Google Colab, repeatable).
-
-### Phase 1: Local Preprocessing
-
-**Step 1 — Download CelebA**
-
-1. Go to https://www.kaggle.com/datasets/jessicali9530/celeba-dataset
-2. Download `archive.zip` (~1.4 GB)
-3. Extract it into `dataset_prep/` so images are at `dataset_prep/archive/img_align_celeba/`
-
-**Step 2 — Crop images to 256×256**
+Without Docker:
 
 ```bash
-cd dataset_prep
-pip install Pillow tqdm
-python preprocess.py
+pip install torch==2.14.1+cpu --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
+pip install -r requirements.txt
+python scripts/fetch_weights.py
+python -m app.server            # http://127.0.0.1:8003
 ```
 
-This uses all CPU cores to crop 202,599 images and creates `celeba_256.zip`. Takes ~5-10 minutes.
+### Using it
 
-### Phase 2: Colab Training
+1. **Sample** or **Upload** a photo (or drop one on the page).
+2. Paint over what should be filled, or use the face-part buttons (eyes, nose,
+   mouth, ...). They are placed from the detected landmarks.
+3. The result appears on the right. Drag the slider to compare before and after.
+4. **Model** in the top bar switches between the loaded models.
 
-**Step 3 — Upload to Google Drive**
+Nothing is stored on the server. Each request carries the image and the mask.
 
-Upload these 3 files to the **root** of your Google Drive:
+## Models
 
-| File | Location | Size |
+| Id | What it is | Weights |
 |---|---|---|
-| `celeba_256.zip` | `dataset_prep/celeba_256.zip` | ~2-4 GB |
-| `inpaint_training.zip` | `dataset_prep/inpaint_training.zip` | ~8 KB |
-| `model.state_dict` | `inpaint/app/static/models/model.state_dict` | ~103 MB |
+| `facerestore` | Our model: partial-convolution U-Net with self-attention, fine-tuned on CelebA from `upstream` | `weights/facerestore.pt`, from this repo's releases |
+| `upstream` | The 2019 partial-convolution model from [karfly/inpaint](https://github.com/karfly/inpaint) | converted from its release by `scripts/convert_legacy.py` |
+| `lama` | [LaMa](https://github.com/advimman/lama) big-lama, trained on scenes (Places2) | optional, `fetch_weights.py --only lama` |
 
-> **Alternative:** You can skip Google Drive and upload files directly to Colab via the sidebar file browser. The tradeoff is that you'll need to re-upload if the session disconnects.
+The app's default is the first available of `facerestore`, `upstream`, `lama`,
+or `FACERESTORE_DEFAULT_ENGINE`.
 
-**Step 4 — Open Colab**
+### Architecture
 
-1. Go to https://colab.research.google.com
-2. Upload `dataset_prep/FaceRestore_Training.ipynb`
-3. Set runtime to **T4 GPU** (Runtime → Change runtime type → T4 GPU)
+- **Partial convolutions** ([Liu et al., 2018](https://arxiv.org/abs/1804.07723)):
+  each convolution only looks at known pixels, and the mask shrinks layer by layer.
+- **U-Net**, 7 levels down and up with skip connections.
+- **Self-attention** ([Zhang et al., 2018](https://arxiv.org/abs/1805.08318)) on
+  the 32x32 decoder map, so one side of the face can inform the other. It starts
+  at zero weight, so fine-tuning from `upstream` begins from the same output.
+- **Loss**: L1 on known and missing pixels, VGG-16 perceptual and style loss,
+  total variation at the hole border. `--adv-weight` adds a patch GAN
+  ([Yu et al., 2019](https://arxiv.org/abs/1806.03589)).
 
-**Step 5 — Run training cells**
+Checkpoints store the model config next to the weights, so a model is always
+run with the settings it was trained with (`facerestore/checkpoint.py`).
 
-| Cell | What it does |
-|---|---|
-| Cell 1 | Installs dependencies, sets up W&B logging |
-| Cell 2 | Unzips dataset, downloads QuickDraw masks |
-| Cell 3 | Verifies GPU availability |
-| Cell 4 | Runs training with tqdm progress bars |
+## Training
 
-The notebook auto-detects whether to start fresh or resume from a checkpoint.
-
-**Step 6 — Anti-idle protection**
-
-Free Colab disconnects after 90 minutes of inactivity. Paste this into the browser console (F12 → Console):
-
-```javascript
-function KeepClicking(){
-  console.log('Keeping Colab alive...');
-  document.querySelector('colab-connect-button')
-    .shadowRoot.getElementById('connect').click();
-}
-setInterval(KeepClicking, 60000);
-```
-
-**Step 7 — Monitor training**
-
-- **Terminal:** tqdm progress bar shows per-batch loss in real-time
-- **W&B Dashboard:** Loss curves, learning rate, and epoch metrics at https://wandb.ai (persists even if Colab crashes)
-
-### Crash Recovery
-
-Colab sessions are unreliable. The pipeline is designed for this:
-
-| Threat | Protection |
-|---|---|
-| Session crash | Checkpoints saved after every epoch |
-| Idle timeout | JavaScript keep-alive script |
-| Time limit | Auto-resume from latest checkpoint |
-| Lost logs | W&B cloud logging survives any crash |
-
-If Colab disconnects, just open a new session and run Cells 1-4 again. Training automatically resumes from the last checkpoint.
-
-### Deploy Trained Model
-
-1. Download `checkpoints/last.pth` from Colab
-2. Rename to `model.state_dict`
-3. Replace `inpaint/app/static/models/model.state_dict`
-4. Restart Docker:
+Training needs a GPU. The `notebooks/kaggle_train.ipynb` notebook runs the whole
+pipeline on a free Kaggle GPU: download CelebA, prepare it, fine-tune, and score
+the models. By hand:
 
 ```bash
-cd inpaint
-docker-compose restart
+pip install -r requirements-train.txt   # plus torch for your GPU
+
+# 1. CelebA aligned faces (parquet, ~1.4 GB) -> 256x256 crops + landmarks
+#    https://huggingface.co/datasets/nielsr/CelebA-faces
+python scripts/prepare_celeba.py --parquet-dir data/celeba_parquet --out data/celeba256 \
+    --detector weights/face_detection_yunet_2023mar.onnx
+
+# 2. Fine-tune from the upstream weights
+python train.py --data data/celeba256 --init weights/upstream.pt --out runs/ft1
+
+# 3. Score against the other models on held-out test faces
+python evaluate.py --data data/celeba256 --weights weights --engine ours=runs/ft1/best.pt
 ```
 
-The app now uses your fine-tuned model.
+The split follows the official CelebA partition (train 1-162770, val
+162771-182637, test 182638-202599), so test faces are never seen in training.
+Training masks mix free-form strokes, face parts (from each image's landmarks)
+and boxes, because users mask whole eyes and mouths, not only thin lines.
+`train.py` validates every 2000 steps and keeps the checkpoint with the best
+LPIPS as `best.pt`. Copy it to `weights/facerestore.pt` to serve it.
 
----
+`evaluate.py` reports, per mask kind (free-form, eyes, nose, mouth, large):
+PSNR inside the hole, SSIM, and LPIPS. LPIPS follows what people see most
+closely, so it decides the default model.
 
-## API Endpoints
+## Layout
 
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/` | Main UI |
-| GET | `/random` | Load a random sample image |
-| POST | `/add_image` | Upload a new image |
-| POST | `/apply_mask` | Apply mask and run reconstruction |
-| POST | `/detect_face` | Detect faces in the current image |
+```
+facerestore/   model, checkpoints, masks, alignment, losses, metrics, engines, pipeline
+app/           Flask app (server.py) and the browser UI
+scripts/       data preparation, weight download, legacy weight conversion
+train.py       training
+evaluate.py    scoring
+tests/         pytest
+```
 
-## Key Dependencies
+## Tests
 
-- PyTorch >= 1.13
-- torchvision >= 0.14
-- Flask >= 2.0
-- OpenCV (headless) >= 4.5
-- NumPy, Pillow, matplotlib
-- W&B (optional, for training logs)
+```bash
+python scripts/fetch_weights.py --only detector
+pytest -q
+```
 
-See `inpaint/requirements.txt` for the full list.
+CI runs the tests and a Docker build that starts the app and fills a sample face.
+
+## Credits and licences
+
+- Started from [karfly/inpaint](https://github.com/karfly/inpaint) (MIT); its
+  model layout and released weights are used as `upstream`.
+- [LaMa](https://github.com/advimman/lama), Apache-2.0, weights via the
+  [IOPaint](https://github.com/Sanster/IOPaint) TorchScript export.
+- [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet)
+  face detector, MIT.
+- [CelebA](https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) is for
+  non-commercial research only. Models trained on it carry that limit.
+- Sample images in `app/static/samples` are from CelebA-HQ.
+
+Code: MIT, see [LICENSE](LICENSE).
