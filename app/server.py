@@ -21,10 +21,9 @@ from facerestore.align import FaceDetector, regions
 
 ROOT = Path(__file__).resolve().parent
 MAX_SIDE = 1024
-# Default is the first one available. LaMa is trained on scenes, smears eyes and
-# mouths on faces and is ~10x slower on CPU, so it comes last. Re-rank with
-# evaluate.py once our trained model is available (see README).
-PREFERENCE = ('facerestore', 'upstream', 'lama')
+# Default is the first one available, ranked by evaluate.py on held-out CelebA
+# test faces (README). LaMa is trained on scenes and smears faces, so it is last.
+PREFERENCE = ('codeformer', 'facerestore', 'upstream', 'lama')
 DETECTOR_FILE = 'face_detection_yunet_2023mar.onnx'
 
 

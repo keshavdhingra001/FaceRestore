@@ -10,10 +10,12 @@ import torch
 import torch.nn.functional as F
 
 from . import checkpoint
+from .align import FFHQ_TEMPLATE_512, TEMPLATE_256
 
 
 class PConvEngine:
     work_size = 256
+    template = TEMPLATE_256
 
     def __init__(self, path, device='cpu'):
         self.device = torch.device(device)
@@ -31,6 +33,7 @@ class PConvEngine:
 class LamaEngine:
     """LaMa (Suvorov et al., 2022), big-lama TorchScript export. Fully convolutional, any size."""
     work_size = 512
+    template = TEMPLATE_256 * 2
 
     def __init__(self, path, device='cpu'):
         self.device = torch.device(device)
@@ -48,8 +51,31 @@ class LamaEngine:
         return out[0].permute(1, 2, 0).cpu().numpy()
 
 
+class CodeFormerEngine:
+    """CodeFormer face inpainting (Zhou et al., 2022) on faces aligned to the FFHQ 512 template."""
+    work_size = 512
+    template = FFHQ_TEMPLATE_512
+
+    def __init__(self, path, device='cpu'):
+        from .codeformer.codeformer_arch import CodeFormer
+        self.device = torch.device(device)
+        model = CodeFormer(dim_embd=512, codebook_size=512, n_head=8, n_layers=9, connect_list=['32', '64', '128'])
+        model.load_state_dict(torch.load(path, map_location='cpu', weights_only=True)['params_ema'])
+        self.model = model.to(self.device).eval()
+
+    @torch.no_grad()
+    def __call__(self, image, hole):
+        x = torch.from_numpy(image.transpose(2, 0, 1)).to(self.device)[None]
+        m = torch.from_numpy(hole).to(self.device).float()[None, None]
+        # The model was trained to treat pure white pixels as the hole; it works in [-1, 1].
+        out = self.model((x * (1 - m) + m) * 2 - 1, w=1, adain=False)[0]
+        out = (1 - m) * x + m * ((out + 1) / 2).clamp(0, 1)
+        return out[0].permute(1, 2, 0).cpu().numpy()
+
+
 # File name in the weights directory -> (engine id, label, class).
 KNOWN = {
+    'codeformer_inpainting.pth': ('codeformer', 'CodeFormer', CodeFormerEngine),
     'facerestore.pt': ('facerestore', 'FaceRestore (ours)', PConvEngine),
     'big-lama.pt': ('lama', 'LaMa', LamaEngine),
     'upstream.pt': ('upstream', 'Upstream PConv (2019)', PConvEngine),

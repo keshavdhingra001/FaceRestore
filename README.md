@@ -36,11 +36,19 @@ Nothing is stored on the server. Each request carries the image and the mask.
 
 | Id | What it is | Weights |
 |---|---|---|
+| `codeformer` | [CodeFormer](https://github.com/sczhou/CodeFormer) face inpainting (S-Lab, 2023), FFHQ-trained. **Default.** | `codeformer_inpainting.pth`, from its release |
 | `facerestore` | Our model: partial-convolution U-Net with self-attention, fine-tuned on CelebA from `upstream` | `weights/facerestore.pt`, from this repo's releases |
 | `upstream` | The 2019 partial-convolution model from [karfly/inpaint](https://github.com/karfly/inpaint) | converted from its release by `scripts/convert_legacy.py` |
 | `lama` | [LaMa](https://github.com/advimman/lama) big-lama, trained on scenes (Places2) | optional, `fetch_weights.py --only lama` |
 
-The app's default is the first available of `facerestore`, `upstream`, `lama`,
+On 200 held-out CelebA test faces (every 100th official test image, app's alignment path):
+
+| | LPIPS (lower better) | PSNR in hole | SSIM |
+|---|---|---|---|
+| `upstream` | 0.0243 | 19.31 dB | 0.9706 |
+| `codeformer` | **0.0154** | **21.39 dB** | **0.9771** |
+
+The app's default is the first available of `codeformer`, `facerestore`, `upstream`, `lama`,
 or `FACERESTORE_DEFAULT_ENGINE`.
 
 ### Architecture
@@ -114,6 +122,8 @@ CI runs the tests and a Docker build that starts the app and fills a sample face
 
 - Started from [karfly/inpaint](https://github.com/karfly/inpaint) (MIT); its
   model layout and released weights are used as `upstream`.
+- [CodeFormer](https://github.com/sczhou/CodeFormer), S-Lab License 1.0
+  (non-commercial). Network code copied in `facerestore/codeformer/` with its licence.
 - [LaMa](https://github.com/advimman/lama), Apache-2.0, weights via the
   [IOPaint](https://github.com/Sanster/IOPaint) TorchScript export.
 - [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet)

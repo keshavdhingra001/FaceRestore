@@ -18,6 +18,15 @@ TEMPLATE_256 = np.array([
     [150.8, 190.9],
 ], dtype=np.float32)
 
+# Standard FFHQ 5-point template at 512x512 (facexlib), used by CodeFormer.
+FFHQ_TEMPLATE_512 = np.array([
+    [192.98138, 239.94708],
+    [318.90277, 240.1936],
+    [256.63416, 314.01935],
+    [201.26117, 371.41043],
+    [313.08905, 371.15118],
+], dtype=np.float32)
+
 REGION_NAMES = ('right_eye', 'left_eye', 'nose', 'mouth', 'forehead', 'right_cheek', 'left_cheek', 'chin')
 
 
@@ -40,9 +49,8 @@ class FaceDetector:
         return sorted(result, key=lambda f: f['box'][2] * f['box'][3], reverse=True)
 
 
-def alignment_matrix(landmarks, size):
-    """Similarity transform that maps the face to the training crop at `size` x `size`."""
-    template = TEMPLATE_256 * (size / 256)
+def alignment_matrix(landmarks, template):
+    """Similarity transform that maps the face's landmarks onto a template."""
     matrix, _ = cv2.estimateAffinePartial2D(landmarks, template, method=cv2.LMEDS)
     return matrix
 

@@ -23,6 +23,12 @@ WEIGHTS = {
         'sha256': '8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4',
         'required': True,
     },
+    'codeformer': {
+        'file': 'codeformer_inpainting.pth',
+        'url': 'https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer_inpainting.pth',
+        'sha256': 'b0d1b868c3dacf75d637bbcc0d4b3dd4ce2a064a338dfb4d35c740d3b4ae8797',
+        'required': False,
+    },
     'lama': {
         'file': 'big-lama.pt',
         'url': 'https://github.com/Sanster/models/releases/download/add_big_lama/big-lama.pt',
@@ -90,7 +96,8 @@ def main():
     for name in args.only or WEIGHTS:
         ok = fetch(name, WEIGHTS[name], dest)
         failed_required |= WEIGHTS[name]['required'] and not ok
-    engines = [f for f in ('facerestore.pt', 'big-lama.pt', 'upstream.pt') if (dest / f).exists()]
+    engines = [f for f in ('codeformer_inpainting.pth', 'facerestore.pt', 'big-lama.pt', 'upstream.pt')
+               if (dest / f).exists()]
     if failed_required or not engines:
         raise SystemExit('missing required weights')
     print(f'engines available: {", ".join(engines)}')

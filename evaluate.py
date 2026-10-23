@@ -15,7 +15,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from facerestore import engines, masks, metrics
+from facerestore import engines, masks, metrics, pipeline
 
 
 def parse_args():
@@ -23,7 +23,8 @@ def parse_args():
     p.add_argument('--data', required=True)
     p.add_argument('--split', default='test')
     p.add_argument('--weights', help='load every known engine found in this directory')
-    p.add_argument('--engine', action='append', default=[], help='name=path to a .pt (PConv checkpoint or big-lama.pt)')
+    p.add_argument('--engine', action='append', default=[],
+                   help='name=path; the file name picks the engine type (see engines.KNOWN), anything else is a PConv checkpoint')
     p.add_argument('--limit', type=int, default=2000)
     p.add_argument('--json', help='write results here')
     p.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu')
@@ -37,7 +38,7 @@ def main():
         loaded.update({k: e for k, (_, e) in engines.load_available(args.weights, args.device).items()})
     for spec in args.engine:
         name, path = spec.split('=', 1)
-        cls = engines.LamaEngine if Path(path).name == 'big-lama.pt' else engines.PConvEngine
+        cls = engines.KNOWN.get(Path(path).name, (None, None, engines.PConvEngine))[2]
         loaded[name] = cls(path, args.device)
     if not loaded:
         raise SystemExit('no engines given')
@@ -55,7 +56,8 @@ def main():
             hole = masks.eval_mask(kind, 256, seed=i, landmarks=lm)
             hole_t = torch.from_numpy(hole).to(args.device).bool()
             for engine_name, engine in loaded.items():
-                out = engine(image, hole)
+                # Same path as the app: align to the engine's template, fill, warp back.
+                out = pipeline.restore(engine, image, hole, None if np.isnan(lm).any() else lm)
                 out_t = torch.from_numpy(out.transpose(2, 0, 1).copy())[None].to(args.device)
                 err = ((out_t - target) ** 2)[0][:, hole_t].mean().clamp(min=1e-10)
                 r = results[engine_name][kind]

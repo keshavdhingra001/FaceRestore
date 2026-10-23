@@ -75,7 +75,7 @@ def test_pipeline_fills_only_the_hole(tmp_path):
 
 
 def test_alignment_maps_template_to_itself():
-    matrix = alignment_matrix(TEMPLATE_256 * 2, 256)
+    matrix = alignment_matrix(TEMPLATE_256 * 2, TEMPLATE_256)
     mapped = (matrix[:, :2] @ (TEMPLATE_256 * 2).T).T + matrix[:, 2]
     assert np.allclose(mapped, TEMPLATE_256, atol=0.5)
 

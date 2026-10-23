@@ -13,7 +13,7 @@ COPY facerestore facerestore
 COPY scripts/fetch_weights.py scripts/convert_legacy.py scripts/
 # Weights already in ./weights are used as-is; the rest is downloaded and checksummed.
 COPY weights weights
-ARG WEIGHTS="detector facerestore upstream"
+ARG WEIGHTS="detector codeformer facerestore upstream"
 RUN python scripts/fetch_weights.py --dest weights --only ${WEIGHTS}
 COPY app app
 

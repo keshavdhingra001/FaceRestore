@@ -26,7 +26,7 @@ def restore(engine, image, hole, landmarks=None):
     remaining = hole.astype(bool)
     if landmarks is not None:
         size = engine.work_size
-        matrix = alignment_matrix(landmarks, size)
+        matrix = alignment_matrix(landmarks, engine.template)
         aligned = cv2.warpAffine(image, matrix, (size, size), flags=cv2.INTER_AREA, borderMode=cv2.BORDER_REFLECT)
         aligned_hole = cv2.warpAffine(hole, matrix, (size, size), flags=cv2.INTER_LINEAR)
         filled = engine(aligned, (aligned_hole > 0).astype(np.uint8))
