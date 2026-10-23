@@ -1,0 +1,9 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8003:8000"
+    environment:
+      # Pick the default model; the UI can switch between all loaded ones.
+      FACERESTORE_DEFAULT_ENGINE: ${FACERESTORE_DEFAULT_ENGINE:-}
+    restart: unless-stopped

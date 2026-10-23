@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: |
+          pip install torch==2.14.1+cpu torchvision==0.29.1+cpu \
+            --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
+          pip install -r requirements-train.txt
+      - name: Fetch face detector
+        run: python scripts/fetch_weights.py --only detector || test -f weights/face_detection_yunet_2023mar.onnx
+      - name: Tests
+        run: pytest -q
+
+  docker:
+    name: Docker (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start
+        run: docker compose up --build -d
+      - name: Wait until healthy
+        run: |
+          for i in $(seq 60); do
+            curl -fsS http://localhost:8003/healthz && exit 0
+            sleep 5
+          done
+          exit 1
+      - name: Restore a sample face
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, uuid
+          from pathlib import Path
+          sample = sorted(Path('app/static/samples').glob('*.png'))[0].read_bytes()
+          # 256x256 RGBA mask with a white box over the eyes, built without extra packages.
+          import struct, zlib
+          rows = b''.join(b'\0' + b''.join(b'\xff\xff\xff\xff' if 90 <= y < 140 and 60 <= x < 196 else b'\0\0\0\0'
+                                          for x in range(256)) for y in range(256))
+          def chunk(t, d): return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d))
+          mask = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 256, 256, 8, 6, 0, 0, 0)) \
+              + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b'')
+          boundary = uuid.uuid4().hex
+          body = b''
+          for name, data in (('image', sample), ('mask', mask)):
+              body += (f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"; filename="{name}.png"\r\n'
+                       'Content-Type: image/png\r\n\r\n').encode() + data + b'\r\n'
+          body += f'--{boundary}--\r\n'.encode()
+          request = urllib.request.Request('http://localhost:8003/api/inpaint', body,
+                                           {'Content-Type': f'multipart/form-data; boundary={boundary}'})
+          with urllib.request.urlopen(request, timeout=120) as response:
+              out = response.read()
+              assert response.headers['Content-Type'] == 'image/png', response.headers
+              assert out.startswith(b'\x89PNG'), out[:20]
+              print('engine', response.headers['X-Engine'], 'face', response.headers['X-Face-Found'], len(out), 'bytes')
+          PY
+      - name: Logs
+        if: always()
+        run: docker compose logs --no-color
+      - name: Stop
+        if: always()
+        run: docker compose down

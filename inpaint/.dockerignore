@@ -1,8 +1,0 @@
-.git
-*.ipynb
-research/
-readme/
-mongo_data/
-__pycache__
-*.pyc
-.gitignore
