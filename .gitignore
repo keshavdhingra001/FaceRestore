@@ -1,55 +1,12 @@
-# ========================================
-# Python
-# ========================================
 __pycache__/
 *.py[cod]
-*.egg-info/
-*.egg
-dist/
-build/
-.eggs/
+.pytest_cache/
+.venv/
 
-# ========================================
-# Large binary files (models, datasets)
-# ========================================
-# *.state_dict
-# *.pth
-*.pt
-*.h5
-*.onnx
+# Weights are downloaded by scripts/fetch_weights.py, never committed.
+weights/*
+!weights/.gitkeep
 
-# ========================================
-# Dataset files (too large for git)
-# ========================================
-dataset_prep/archive/
-dataset_prep/celeba_256/
-dataset_prep/celeba_256.zip
-dataset_prep/inpaint_training.zip
-
-# ========================================
-# Docker / Runtime data
-# ========================================
-inpaint/mongo_data/
-inpaint/app/prometheus/data/
-inpaint/app/prometheus/client_data/
-
-# ========================================
-# IDE / OS
-# ========================================
-.vscode/
-.idea/
-*.swp
-Thumbs.db
-.DS_Store
-
-# ========================================
-# Old / Deprecated files
-# ========================================
-inpaint/inpaint_training_code.zip
-inpaint/Train_Inpaint_Colab.ipynb
-
-# ========================================
-# Colab / Jupyter
-# ========================================
-.ipynb_checkpoints/
-wandb/
+# Datasets and training runs
+data/
+runs/
